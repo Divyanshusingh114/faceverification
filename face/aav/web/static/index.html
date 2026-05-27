@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Aadhaar Face Verification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0a0c10; --panel:#12151c; --panel-2:#171b24;
+    --line:#262b36; --text:#c9cdd6; --dim:#6b7280; --bright:#f2f4f8;
+    --signal:#3ddc97; --warn:#f4b740; --bad:#ff5d5d;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--text);font-family:var(--sans);
+    min-height:100vh;line-height:1.55;
+    background-image:
+      linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);
+    background-size:46px 46px;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:48px 24px 80px}
+
+  header{margin-bottom:34px;animation:rise .6s ease both}
+  .tag{font-family:var(--mono);font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--signal);margin-bottom:10px}
+  h1{font-size:30px;font-weight:700;color:var(--bright);letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:14px;margin-top:6px;max-width:54ch}
+
+  .stepper{display:flex;gap:6px;margin:26px 0 28px;animation:rise .6s .08s ease both}
+  .pip{flex:1;height:3px;background:var(--line);border-radius:2px;transition:.4s}
+  .pip.on{background:var(--signal)}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:26px;animation:rise .55s .14s ease both}
+  .panel + .panel{margin-top:16px}
+  .phead{display:flex;align-items:baseline;gap:10px;margin-bottom:18px}
+  .pnum{font-family:var(--mono);font-size:12px;color:var(--signal)}
+  .ptitle{font-size:16px;font-weight:600;color:var(--bright)}
+  .phint{font-size:13px;color:var(--dim);margin-left:auto}
+
+  .drop{border:1.5px dashed var(--line);border-radius:8px;padding:34px 20px;
+    text-align:center;cursor:pointer;transition:.2s;background:var(--panel-2)}
+  .drop:hover{border-color:var(--signal);background:#181c26}
+  .drop.has{border-style:solid;border-color:var(--signal)}
+  .drop svg{width:30px;height:30px;stroke:var(--dim);margin-bottom:8px}
+  .drop b{color:var(--text);font-weight:600;font-size:14px}
+  .drop span{display:block;color:var(--dim);font-size:12px;margin-top:3px;
+    font-family:var(--mono)}
+  #preview{max-height:150px;border-radius:6px;margin-top:14px;display:none;
+    border:1px solid var(--line)}
+
+  .stage{position:relative;border-radius:8px;overflow:hidden;background:#000;
+    aspect-ratio:4/3;border:1px solid var(--line)}
+  video,#capCanvas{width:100%;height:100%;object-fit:cover;display:block}
+  #capCanvas{display:none}
+  .scan{position:absolute;left:0;right:0;height:2px;
+    background:linear-gradient(90deg,transparent,var(--signal),transparent);
+    opacity:0;animation:sweep 2.6s linear infinite}
+  .stage.live .scan{opacity:.85}
+  .reticle{position:absolute;inset:0;pointer-events:none;
+    box-shadow:inset 0 0 0 1px rgba(61,220,151,.18)}
+  .reticle::before,.reticle::after{content:"";position:absolute;
+    width:30px;height:30px;border:2px solid var(--signal)}
+  .reticle::before{top:14px;left:14px;border-right:0;border-bottom:0}
+  .reticle::after{bottom:14px;right:14px;border-left:0;border-top:0}
+
+  .challenge{margin-top:14px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:8px;padding:16px 18px;display:none}
+  .challenge.show{display:block;animation:rise .35s ease both}
+  .clabel{font-family:var(--mono);font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--warn);margin-bottom:6px}
+  .ctext{font-size:15px;color:var(--bright);font-weight:500}
+  .cbar{height:4px;background:var(--line);border-radius:2px;margin-top:12px;overflow:hidden}
+  .cbar i{display:block;height:100%;width:0;background:var(--warn);
+    border-radius:2px;transition:width .12s linear}
+
+  button{font-family:var(--sans);font-weight:600;font-size:14px;cursor:pointer;
+    border:none;border-radius:7px;padding:13px 20px;transition:.16s;width:100%}
+  .btn{background:var(--signal);color:#06281a}
+  .btn:hover:not(:disabled){filter:brightness(1.08)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  .btn.ghost:hover:not(:disabled){border-color:var(--signal);color:var(--bright)}
+  .row{display:flex;gap:10px;margin-top:16px}
+
+  .msg{font-family:var(--mono);font-size:12.5px;margin-top:14px;padding:11px 13px;
+    border-radius:6px;display:none;border:1px solid}
+  .msg.show{display:block}
+  .msg.err{color:var(--bad);border-color:rgba(255,93,93,.35);background:rgba(255,93,93,.07)}
+  .msg.info{color:var(--dim);border-color:var(--line);background:var(--panel-2)}
+
+  /* result */
+  .verdict{text-align:center;padding:18px 0 6px}
+  .vbadge{font-family:var(--mono);font-size:12px;letter-spacing:.2em;
+    text-transform:uppercase;padding:7px 16px;border-radius:20px;display:inline-block;
+    border:1px solid}
+  .v-VERIFIED{color:var(--signal);border-color:var(--signal);background:rgba(61,220,151,.08)}
+  .v-MANUAL_REVIEW{color:var(--warn);border-color:var(--warn);background:rgba(244,183,64,.08)}
+  .v-REJECTED{color:var(--bad);border-color:var(--bad);background:rgba(255,93,93,.08)}
+  .vline{font-size:22px;font-weight:700;color:var(--bright);margin-top:14px}
+  .vsub{font-size:13px;color:var(--dim);margin-top:4px}
+
+  .meters{margin-top:20px;border-top:1px solid var(--line);padding-top:16px}
+  .meter{margin-bottom:14px}
+  .mtop{display:flex;justify-content:space-between;font-family:var(--mono);
+    font-size:12px;margin-bottom:5px}
+  .mtop .k{color:var(--dim)}
+  .mtop .v{color:var(--bright)}
+  .track{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+  .track i{display:block;height:100%;border-radius:3px}
+  .kv{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px;
+    font-family:var(--mono);font-size:12px}
+  .kv div{display:flex;justify-content:space-between;border-bottom:1px dotted var(--line);
+    padding-bottom:4px}
+  .kv .k{color:var(--dim)}
+  .kv .v{color:var(--text)}
+
+  .hidden{display:none}
+  footer{margin-top:30px;font-family:var(--mono);font-size:11px;color:var(--dim);
+    line-height:1.7}
+
+  /* tabs */
+  .tabs{display:flex;gap:10px;margin-bottom:18px}
+  .tab{flex:1;padding:10px;text-align:center;background:var(--panel-2);border:1px solid var(--line);
+       border-radius:6px;cursor:pointer;color:var(--dim);font-size:13px;font-weight:600;transition:.2s}
+  .tab:hover{border-color:var(--signal);color:var(--text)}
+  .tab.active{background:rgba(61,220,151,.08);border-color:var(--signal);color:var(--signal)}
+
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes sweep{0%{top:0}100%{top:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="tag">Identity Verification · Prototype</div>
+    <h1>Aadhaar Face Verification</h1>
+    <p class="sub">Match a live camera capture against the photo on an Aadhaar
+      card, with an active liveness check. Prototype only — not a UIDAI-certified
+      authentication service.</p>
+  </header>
+
+  <div class="stepper">
+    <div class="pip on" id="pip0"></div>
+    <div class="pip" id="pip1"></div>
+    <div class="pip" id="pip2"></div>
+  </div>
+
+  <!-- STEP 1 — UPLOAD -->
+  <section class="panel" id="step1">
+    <div class="phead">
+      <span class="pnum">01</span>
+      <span class="ptitle">Upload Aadhaar card</span>
+      <span class="phint">image with a clear face photo</span>
+    </div>
+    <div class="drop" id="drop">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round">
+        <path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/>
+      </svg>
+      <b>Click to select the Aadhaar card image</b>
+      <span>JPG / PNG · the card photo is used only to extract a face</span>
+      <img id="preview" alt="preview"/>
+    </div>
+    <input type="file" id="file" accept="image/*" class="hidden"/>
+    <button class="btn" id="uploadBtn" disabled style="margin-top:16px">
+      Extract reference face
+    </button>
+    <div class="msg" id="msg1"></div>
+  </section>
+
+  <!-- STEP 2 — LIVE -->
+  <section class="panel hidden" id="step2">
+    <div class="phead">
+      <span class="pnum">02</span>
+      <span class="ptitle">Live camera verification</span>
+      <span class="phint">verify your identity</span>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" id="tabLive">Capture Photo (Webcam)</div>
+      <div class="tab" id="tabUpload">Upload Photo (File)</div>
+    </div>
+
+    <div id="liveWrapper">
+      <div class="stage" id="stage">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="capCanvas" class="hidden"></canvas>
+      </div>
+      <button class="btn ghost" id="captureBtn" style="margin-top:14px">Capture Snapshot</button>
+      <button class="btn ghost hidden" id="retakeBtn" style="margin-top:14px">Retake Snapshot</button>
+    </div>
+
+    <div id="uploadWrapper" class="hidden">
+      <div class="drop" id="dropVerify">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round">
+          <path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/>
+        </svg>
+        <b>Click to select a photo for verification</b>
+        <span>JPG / PNG</span>
+        <img id="previewVerify" alt="preview" style="display:none; max-height:150px; border-radius:6px; margin-top:14px; border:1px solid var(--line); width:100%; object-fit:contain;"/>
+      </div>
+      <input type="file" id="fileVerify" accept="image/*" class="hidden"/>
+    </div>
+
+    <div class="row">
+      <button class="btn ghost" id="backBtn">Back</button>
+      <button class="btn" id="startBtn" disabled>Verify Photo</button>
+    </div>
+    <div class="msg" id="msg2"></div>
+  </section>
+
+  <!-- STEP 3 — RESULT -->
+  <section class="panel hidden" id="step3">
+    <div class="phead">
+      <span class="pnum">03</span>
+      <span class="ptitle">Result</span>
+    </div>
+    <div class="verdict">
+      <span class="vbadge" id="vbadge">—</span>
+      <div class="vline" id="vline">—</div>
+      <div class="vsub" id="vsub"></div>
+    </div>
+    <div class="meters" id="meters"></div>
+    <button class="btn ghost" id="againBtn" style="margin-top:20px">
+      Run another verification
+    </button>
+  </section>
+
+  <footer>
+    NOTE — Prototype. Matches the printed card photo, not UIDAI's enrolment
+    record. Card image is never stored; the reference face embedding is held in
+    memory and discarded after each attempt. Borderline scores route to manual
+    review / Aadhaar-OTP step-up rather than a hard reject.
+  </footer>
+</div>
+
+<script>
+const API = "";                 // same origin
+let sessionId = null;
+let stream = null;
+
+const $ = id => document.getElementById(id);
+function show(el){el.classList.remove("hidden")}
+function hide(el){el.classList.add("hidden")}
+function pip(n){[0,1,2].forEach(i=>$("pip"+i).classList.toggle("on",i<=n))}
+function flash(el,text,kind){el.textContent=text;el.className="msg show "+kind}
+function clearMsg(el){el.className="msg"}
+
+const HINDI_REASONS = {
+  "could_not_decode_image": "इमेज को डिकोड नहीं किया जा सका",
+  "no_face_found_on_card": "कार्ड पर कोई चेहरा नहीं मिला",
+  "face_too_small_upload_higher_resolution": "चेहरा बहुत छोटा है, कृपया हाई रेजोल्यूशन में अपलोड करें",
+  "low_detection_confidence_retake_photo": "चेहरा साफ़ नहीं है, कृपया दोबारा फोटो लें",
+  "too_few_frames_captured": "बहुत कम फ्रेम कैप्चर किए गए",
+  "multiple_faces_detected": "एक से अधिक चेहरे का पता चला, कृपया कैमरे के सामने अकेले रहें",
+  "face_not_consistently_visible": "चेहरा लगातार कैमरे में दिखाई नहीं दे रहा है",
+  "head_turn_not_detected": "सिर घुमाने का एक्शन सही से नहीं मिला",
+  "head_nod_not_detected": "सिर झुकाने का एक्शन सही से नहीं मिला",
+  "approach_motion_not_detected": "कैमरे के पास आने का एक्शन सही से नहीं मिला",
+  "unknown_challenge": "अज्ञात एक्शन",
+  "no_frontal_frame_for_match": "मिलान के लिए कोई सीधा चेहरा नहीं मिला",
+  "liveness_failed": "लाइवनेस चेक विफल रहा"
+};
+
+function getReasonHindi(reasonKey) {
+  if (!reasonKey) return "";
+  return HINDI_REASONS[reasonKey] || reasonKey.replaceAll("_"," ");
+}
+
+/* ---------- STEP 1 : upload ---------- */
+const fileInput=$("file"), drop=$("drop"), preview=$("preview");
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{
+  const f=fileInput.files[0]; if(!f) return;
+  drop.classList.add("has");
+  preview.src=URL.createObjectURL(f); preview.style.display="block";
+  $("uploadBtn").disabled=false; clearMsg($("msg1"));
+};
+
+$("uploadBtn").onclick=async()=>{
+  const f=fileInput.files[0]; if(!f) return;
+  $("uploadBtn").disabled=true;
+  flash($("msg1"),"> extracting face from card …","info");
+  const fd=new FormData(); fd.append("file",f);
+  try{
+    const r=await fetch(API+"/api/upload",{method:"POST",body:fd});
+    const d=await r.json();
+    if(!d.ok){
+      flash($("msg1"),"✗ "+getReasonHindi(d.reason),"err");
+      $("uploadBtn").disabled=false; return;
+    }
+    sessionId=d.session_id;
+    const q=d.reference_quality;
+    flash($("msg1"),
+      `✓ reference face accepted · ${q.face_px}px · blur ${q.blur} · det ${q.det_score}`,
+      "info");
+    setTimeout(()=>{ hide($("step1")); show($("step2")); pip(1); initCamera(); },650);
+  }catch(e){
+    flash($("msg1"),"✗ upload failed — is the backend running?","err");
+    $("uploadBtn").disabled=false;
+  }
+};
+
+/* ---------- STEP 2 : camera + capture ---------- */
+let verifyMode = "live";
+let capturedFrame = null;
+
+$("tabLive").onclick = () => {
+  verifyMode = "live";
+  $("tabLive").classList.add("active"); $("tabUpload").classList.remove("active");
+  show($("liveWrapper")); hide($("uploadWrapper"));
+  $("startBtn").disabled = !capturedFrame;
+};
+
+$("tabUpload").onclick = () => {
+  verifyMode = "upload";
+  $("tabUpload").classList.add("active"); $("tabLive").classList.remove("active");
+  hide($("liveWrapper")); show($("uploadWrapper"));
+  $("startBtn").disabled = !$("fileVerify").files[0];
+  $("startBtn").textContent = "Verify photo";
+};
+
+const fileVerify=$("fileVerify"), dropVerify=$("dropVerify"), previewVerify=$("previewVerify");
+dropVerify.onclick=()=>fileVerify.click();
+fileVerify.onchange=()=>{
+  const f=fileVerify.files[0]; if(!f) return;
+  dropVerify.classList.add("has");
+  previewVerify.src=URL.createObjectURL(f); previewVerify.style.display="block";
+  if(verifyMode === "upload") $("startBtn").disabled=false;
+};
+
+$("captureBtn").onclick = () => {
+  const v = $("video"), c = $("capCanvas");
+  // Use native video resolution (up to 640px wide) for better face quality
+  const w = Math.min(v.videoWidth || 640, 640);
+  const h = Math.round(w * (v.videoHeight || 480) / (v.videoWidth || 640));
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(v, 0, 0, w, h);
+  capturedFrame = c.toDataURL("image/jpeg", 0.92);  // higher quality
+  
+  // Also capture the live video element for preview
+  c.style.display = "block";
+  hide($("video")); show(c);
+  hide($("captureBtn")); show($("retakeBtn"));
+  $("startBtn").disabled = false;
+};
+
+$("retakeBtn").onclick = () => {
+  capturedFrame = null;
+  show($("video")); hide($("capCanvas"));
+  show($("captureBtn")); hide($("retakeBtn"));
+  $("startBtn").disabled = true;
+};
+
+async function initCamera(){
+  try{
+    // Request high resolution for better face detection accuracy
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{ width:{ideal:1280}, height:{ideal:720}, facingMode:"user" }
+    });
+    $("video").srcObject=stream;
+  }catch(e){
+    try{
+      // Fallback to basic camera if HD not available
+      stream=await navigator.mediaDevices.getUserMedia({video:true});
+      $("video").srcObject=stream;
+    }catch(e2){
+      flash($("msg2"),"✗ camera access denied or unavailable","err");
+    }
+  }
+}
+
+// Capture multiple frames from live video for better embedding averaging
+async function captureMultiFrames(count=5, intervalMs=150){
+  return new Promise(resolve=>{
+    const v=$("video"), c=document.createElement("canvas");
+    const w=Math.min(v.videoWidth||640,640);
+    const h=Math.round(w*(v.videoHeight||480)/(v.videoWidth||640));
+    c.width=w; c.height=h;
+    const frames=[];
+    let i=0;
+    const timer=setInterval(()=>{
+      if(i>=count){ clearInterval(timer); resolve(frames); return; }
+      const ctx=c.getContext("2d");
+      ctx.drawImage(v,0,0,w,h);
+      frames.push(c.toDataURL("image/jpeg",0.92));
+      i++;
+    },intervalMs);
+  });
+}
+function stopCamera(){ if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;} }
+
+$("backBtn").onclick=()=>{
+  stopCamera(); hide($("step2")); show($("step1")); pip(0);
+  $("uploadBtn").disabled=false; clearMsg($("msg2"));
+};
+
+$("startBtn").onclick=async()=>{
+  $("startBtn").disabled=true; $("backBtn").disabled=true;
+  clearMsg($("msg2"));
+  
+  let frames = [];
+  let sendMode = "upload";  // always send as upload mode (bypass liveness challenge)
+
+  if (verifyMode === "live") {
+    if (!capturedFrame) { resetStep2(); return; }
+    // Send captured snapshot + up to 4 extra frames from live feed for better averaging
+    flash($("msg2"),"> capturing frames for analysis …","info");
+    frames = [capturedFrame];
+    // Try to grab a few more frames from live video if stream still active
+    if (stream && stream.active) {
+      try {
+        const extra = await captureMultiFrames(4, 120);
+        frames = frames.concat(extra);
+      } catch(e) { /* use just the snapshot */ }
+    }
+    flash($("msg2"),"> analysing "+frames.length+" frames …","info");
+  } else {
+    // upload mode — user uploaded a photo file
+    const f = fileVerify.files[0];
+    if (!f) { flash($("msg2"), "✗ Please select a photo first", "err"); resetStep2(); return; }
+    
+    // Convert to base64
+    const dataUrl = await new Promise((res) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result);
+      reader.readAsDataURL(f);
+    });
+    frames = [dataUrl];
+    flash($("msg2"), "> analysing photo …", "info");
+  }
+
+  // verify
+  try{
+    const r=await fetch(API+"/api/verify/"+sessionId,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({frames: frames, mode: sendMode})
+    });
+    const d=await r.json();
+    if(d.detail) throw new Error(d.detail);
+    stopCamera(); renderResult(d);
+  }catch(e){
+    flash($("msg2"),"✗ verification failed — "+e.message,"err");
+    resetStep2();
+  }
+};
+
+function resetStep2(){
+  $("startBtn").disabled=false; $("backBtn").disabled=false;
+}
+
+/* ---------- STEP 3 : result ---------- */
+function bar(v,max,color){
+  const pct=Math.max(0,Math.min(100,v/max*100));
+  return `<div class="track"><i style="width:${pct}%;background:${color}"></i></div>`;
+}
+
+function renderResult(d){
+  hide($("step2")); show($("step3")); pip(2);
+  const dec=d.decision, tier=dec.tier;
+  const COL={VERIFIED:"var(--signal)",MANUAL_REVIEW:"var(--warn)",REJECTED:"var(--bad)"};
+  const LINE={VERIFIED:"Identity confirmed",
+              MANUAL_REVIEW:"Needs manual review",
+              REJECTED:"Verification failed"};
+  $("vbadge").textContent=tier.replace("_"," ");
+  $("vbadge").className="vbadge v-"+tier;
+  $("vline").textContent=LINE[tier];
+
+  const live=d.liveness;
+  let m="";
+
+  if(!live.passed){
+    $("vsub").textContent="वेरिफिकेशन फेल हुआ (Liveness failed) — "+
+      getReasonHindi(live.reason);
+    m+=`<div class="meter"><div class="mtop"><span class="k">liveness · ${d.challenge_id}</span>
+        <span class="v" style="color:var(--bad)">FAILED</span></div>
+        ${bar(0,1,"var(--bad)")}</div>`;
+    m+=`<div class="kv">`;
+    for(const [k,v] of Object.entries(live.evidence||{}))
+      m+=`<div><span class="k">${k}</span><span class="v">${v}</span></div>`;
+    m+=`</div>`;
+    $("meters").innerHTML=m;
+    return;
+  }
+
+  // liveness passed
+  m+=`<div class="meter"><div class="mtop"><span class="k">liveness · ${d.challenge_id}</span>
+      <span class="v" style="color:var(--signal)">PASSED</span></div>
+      ${bar(1,1,"var(--signal)")}</div>`;
+
+  if(dec.similarity===undefined){
+    $("vsub").textContent=getReasonHindi(dec.cause);
+    $("meters").innerHTML=m;
+    return;
+  }
+
+  // Prefer score_pct (0–100%) if available, else fall back to cosine*100
+  const scorePct = dec.score_pct !== undefined ? dec.score_pct : Math.round(dec.similarity * 100 * 100)/100;
+  const thrPct   = dec.threshold_verified_pct !== undefined ? dec.threshold_verified_pct : Math.round(dec.threshold_verified * 100 * 100)/100;
+  const rvwPct   = dec.threshold_review_pct   !== undefined ? dec.threshold_review_pct   : Math.round(dec.threshold_review   * 100 * 100)/100;
+  const relaxPct = dec.relaxation_applied_pct !== undefined ? dec.relaxation_applied_pct : Math.round((dec.relaxation_applied||0)*100*100)/100;
+
+  $("vsub").textContent =
+    `face match score: ${scorePct}% · auto-approve ≥ ${thrPct}%`+
+    (relaxPct > 0 ? ` · relaxed ${relaxPct}% for ~${dec.age_gap_years}y age gap` : "");
+
+  m+=`<div class="meter"><div class="mtop">
+       <span class="k">face match score</span>
+       <span class="v" style="color:${COL[tier]};font-weight:700">${scorePct}%</span></div>
+       ${bar(scorePct,100,COL[tier])}</div>`;
+
+  m+=`<div class="kv">
+      <div><span class="k">decision tier</span><span class="v">${tier}</span></div>
+      <div><span class="k">verified ≥</span><span class="v">${thrPct}%</span></div>
+      <div><span class="k">review ≥</span><span class="v">${rvwPct}%</span></div>
+      <div><span class="k">age gap (est.)</span><span class="v">${dec.age_gap_years} yr</span></div>
+      <div><span class="k">frontal frames used</span><span class="v">${dec.frontal_frames_used}</span></div>
+      <div><span class="k">replay score</span><span class="v">${dec.passive_replay_score}</span></div>
+      </div>`;
+  $("meters").innerHTML=m;
+}
+
+$("againBtn").onclick=()=>{
+  sessionId=null; fileInput.value=""; fileVerify.value="";
+  preview.style.display="none"; drop.classList.remove("has");
+  previewVerify.style.display="none"; dropVerify.classList.remove("has");
+  capturedFrame = null;
+  show($("video")); hide($("capCanvas"));
+  show($("captureBtn")); hide($("retakeBtn"));
+  clearMsg($("msg1")); clearMsg($("msg2"));
+  $("uploadBtn").disabled=true; resetStep2();
+  hide($("step3")); hide($("step2")); show($("step1")); pip(0);
+};
+</script>
+</body>
+</html>

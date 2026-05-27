@@ -1,0 +1,32 @@
+[project]
+name = "aav"
+version = "1.0.0"
+description = "Aadhaar face verification service"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+include = ["aav*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = ["venv", "venv4", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+no_implicit_optional = true
+exclude = ["venv", "venv4", ".venv", "tests"]
